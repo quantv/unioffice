@@ -8,31 +8,52 @@ type LinkedExpression interface {
 	UpdateCellRef(ctx UpdateContext) Expression
 }
 
-func UpdateExpressionCellRef(sheetName, s string, rowNum, rows uint32) Expression {
+func UpdateExpressionCellRef(ctx UpdateContext, s string) Expression {
 	expr := ParseString(s)
-	return expr.(LinkedExpression).UpdateCellRef(UpdateContext{sheetName: sheetName, rows: rows, rowNum: rowNum})
+	return expr.(LinkedExpression).UpdateCellRef(ctx)
 }
 
 type UpdateContext struct {
-	sheetName string
-	rows      uint32
-	rowNum    uint32
+	SheetName string
+	DeltaR    int
+	DeltaC    int
+	RowNum    uint32
+}
+
+func _add_delta(n uint32, d int) uint32 {
+	if d >= 0 {
+		return n + uint32(d)
+	} else {
+		v := uint32(-d)
+		if v > n {
+			return n
+		}
+		return n - v
+	}
 }
 
 func (e CellRef) UpdateCellRef(ctx UpdateContext) Expression {
 	ref, err := reference.ParseCellReference(e._cbe)
-	if err != nil || ref.AbsoluteRow {
+	if err != nil {
 		return e
 	}
 	//do not care cell from other sheet
-	if len(ref.SheetName) != 0 && ref.SheetName != ctx.sheetName {
+	if len(ref.SheetName) != 0 && ref.SheetName != ctx.SheetName {
 		return e
 	}
-	//do not care cell above the insertion
-	if ref.RowIdx < ctx.rowNum {
+
+	//do not update cell above RowNum becuase it does not move
+	if ref.RowIdx < ctx.RowNum {
 		return e
 	}
-	ref.RowIdx += ctx.rows
+
+	if !ref.AbsoluteRow {
+		ref.RowIdx = _add_delta(ref.RowIdx, ctx.DeltaR)
+	}
+	if !ref.AbsoluteColumn {
+		ref.ColumnIdx = _add_delta(ref.ColumnIdx, ctx.DeltaC)
+		ref.Column = reference.IndexToColumn(ref.ColumnIdx)
+	}
 	e._cbe = ref.String()
 	return e
 }
