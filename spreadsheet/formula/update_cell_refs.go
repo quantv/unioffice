@@ -25,7 +25,7 @@ func (e CellRef) UpdateCellRef(ctx UpdateContext) Expression {
 		return e
 	}
 	//do not care cell from other sheet
-	if ref.SheetName != "" && ref.SheetName != ctx.sheetName {
+	if len(ref.SheetName) != 0 && ref.SheetName != ctx.sheetName {
 		return e
 	}
 	//do not care cell above the insertion
