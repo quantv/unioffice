@@ -1,6 +1,10 @@
 package spreadsheet
 
 import (
+	"errors"
+	"math/big"
+	"time"
+
 	"github.com/unidoc/unioffice"
 	"github.com/unidoc/unioffice/schema/soo/sml"
 	"github.com/unidoc/unioffice/spreadsheet/formula"
@@ -128,4 +132,24 @@ func (sheet *Sheet) InsertRows(rowNum int, rows uint32) uint32 {
 	}
 
 	return rows
+}
+
+// GetValueAsTime2 return cell value as time. accept both unset and number as cell type
+func (_cfbf Cell) GetValueAsTime2() (time.Time, error) {
+	if _cfbf._gbf.TAttr != sml.ST_CellTypeUnset && _cfbf._gbf.TAttr != sml.ST_CellTypeN {
+		return time.Time{}, errors.New("cell type must be unset or number")
+	}
+	if _cfbf._gbf.V == nil {
+		return time.Time{}, errors.New("null value")
+	}
+	_bag, _, _bad := big.ParseFloat(*_cfbf._gbf.V, 10, 128, big.ToNearestEven)
+	if _bad != nil {
+		return time.Time{}, _bad
+	}
+	_cabg := new(big.Float)
+	_cabg.SetUint64(uint64(24 * time.Hour))
+	_bag.Mul(_bag, _cabg)
+	_ebg, _ := _bag.Uint64()
+	_dad := _cfbf._abb.Epoch().Add(time.Duration(_ebg))
+	return _bbd(_dad), nil
 }
