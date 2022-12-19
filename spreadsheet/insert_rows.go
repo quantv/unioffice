@@ -153,3 +153,7 @@ func (_cfbf Cell) GetValueAsTime2() (time.Time, error) {
 	_dad := _cfbf._abb.Epoch().Add(time.Duration(_ebg))
 	return _bbd(_dad), nil
 }
+
+func (cell Cell) GetFormat() string {
+	return cell.getFormat()
+}
