@@ -228,7 +228,7 @@ func (_cgg *convertContext) getContentFromCell(cell _d.Cell, _eged *style, _cga 
 		cellSymbols = _cgg.getSymbolsFromString(cell.GetFormattedValue(), _eged)
 	}
 	_bff := 0.0
-	_gdg := 0.0
+	start := 0.0
 	var lines []*line
 	var _gdaf bool
 	if _eged != nil {
@@ -250,43 +250,43 @@ func (_cgg *convertContext) getContentFromCell(cell _d.Cell, _eged *style, _cga 
 		for _, symbol1 := range cellSymbols {
 			_bgfc(symbol1)
 			if symbol1.value == "\n" {
-				_dbea := _bgab(symbols)
+				_dbea := findMax(symbols)
 				//control line spacing.
 				_dbea -= 2.5
-				lines = append(lines, &line{_aabb: _gdg, symbols: symbols, _fdfc: _dbea})
+				lines = append(lines, &line{lineSpace: start, symbols: symbols, fontSize: _dbea})
 				symbols = []*symbol{symbol1}
 				_bff = symbol1._fceca
-				_gdg += _dbea
+				start += _dbea
 			} else if _bff+symbol1._fceca >= _acb {
-				_dbea := _bgab(symbols)
+				_dbea := findMax(symbols)
 				if _gdaf {
 					_dbea /= _ga
 				}
-				lines = append(lines, &line{_aabb: _gdg, symbols: symbols, _fdfc: _dbea})
+				lines = append(lines, &line{lineSpace: start, symbols: symbols, fontSize: _dbea})
 				symbols = []*symbol{symbol1}
 				_bff = symbol1._fceca
-				_gdg += _dbea
+				start += _dbea
 			} else {
-				symbol1._ebaf = _bff
+				symbol1.left = _bff
 				_bff += symbol1._fceca
 				symbols = append(symbols, symbol1)
 			}
 		}
-		_cbgf := _bgab(symbols)
+		_cbgf := findMax(symbols)
 		if _gdaf {
 			_cbgf /= _ga
 		}
 		if len(symbols) > 0 {
-			lines = append(lines, &line{_aabb: _gdg, symbols: symbols, _fdfc: _cbgf})
+			lines = append(lines, &line{lineSpace: start, symbols: symbols, fontSize: _cbgf})
 		}
 	} else {
 		for _, _agd := range cellSymbols {
 			_bgfc(_agd)
-			_agd._ebaf = _bff
+			_agd.left = _bff
 			_bff += _agd._fceca
 		}
 		if len(cellSymbols) > 0 {
-			lines = []*line{&line{symbols: cellSymbols, _fdfc: _bgab(cellSymbols)}}
+			lines = []*line{&line{symbols: cellSymbols, fontSize: findMax(cellSymbols)}}
 		}
 	}
 	_daf := _gdd.TAttr
@@ -515,7 +515,7 @@ func (ctx *convertContext) makeMergedCells() {
 
 type symbol struct {
 	value  string
-	_ebaf  float64
+	left   float64
 	_fgfag float64
 	_fceca float64
 	_fae   *creator.TextStyle
@@ -541,9 +541,9 @@ func _fcc(_ffd []*symbol) float64 {
 var _egac = map[uint32]creator.PageSize{1: creator.PageSize{8.5 * _ae.Inch, 11 * _ae.Inch}, 2: creator.PageSize{8.5 * _ae.Inch, 11 * _ae.Inch}, 3: creator.PageSize{11 * _ae.Inch, 17 * _ae.Inch}, 4: creator.PageSize{17 * _ae.Inch, 11 * _ae.Inch}, 5: creator.PageSize{8.5 * _ae.Inch, 14 * _ae.Inch}, 6: creator.PageSize{5.5 * _ae.Inch, 8.5 * _ae.Inch}, 7: creator.PageSize{7.5 * _ae.Inch, 10 * _ae.Inch}, 8: creator.PageSize{_gefg(297), _gefg(420)}, 9: creator.PageSize{_gefg(210), _gefg(297)}, 10: creator.PageSize{_gefg(210), _gefg(297)}, 11: creator.PageSize{_gefg(148), _gefg(210)}, 70: creator.PageSize{_gefg(105), _gefg(148)}, 12: creator.PageSize{_gefg(250), _gefg(354)}, 13: creator.PageSize{_gefg(182), _gefg(257)}, 14: creator.PageSize{8.5 * _ae.Inch, 13 * _ae.Inch}, 20: creator.PageSize{4.125 * _ae.Inch, 9.5 * _ae.Inch}, 27: creator.PageSize{_gefg(110), _gefg(220)}, 28: creator.PageSize{_gefg(162), _gefg(229)}, 34: creator.PageSize{_gefg(250), _gefg(176)}, 29: creator.PageSize{_gefg(324), _gefg(458)}, 30: creator.PageSize{_gefg(229), _gefg(324)}, 31: creator.PageSize{_gefg(114), _gefg(162)}, 37: creator.PageSize{3.88 * _ae.Inch, 7.5 * _ae.Inch}, 43: creator.PageSize{_gefg(100), _gefg(148)}, 69: creator.PageSize{_gefg(200), _gefg(148)}}
 
 type line struct {
-	_aabb   float64
-	symbols []*symbol
-	_fdfc   float64
+	lineSpace float64
+	symbols   []*symbol
+	fontSize  float64
 }
 
 const _ac = 0.25
@@ -825,7 +825,7 @@ type colInfo struct {
 }
 
 func (_gacg *convertContext) alignSymbolsHorizontally(_bfd *cell, _cab sml.ST_HorizontalAlignment) {
-	if _cab == sml.ST_HorizontalAlignmentUnset {
+	if _cab == sml.ST_HorizontalAlignmentUnset || _cab == sml.ST_HorizontalAlignmentGeneral {
 		switch _bfd.cellType {
 		case sml.ST_CellTypeB:
 			_cab = sml.ST_HorizontalAlignmentCenter
@@ -836,19 +836,20 @@ func (_gacg *convertContext) alignSymbolsHorizontally(_bfd *cell, _cab sml.ST_Ho
 		}
 	}
 	var _ggd float64
-	for _, _bba := range _bfd.lines {
+	for _, line := range _bfd.lines {
 		switch _cab {
 		case sml.ST_HorizontalAlignmentLeft:
-			_ggd = _eb
+			//_ggd = _eb
+			_ggd = 0
 		case sml.ST_HorizontalAlignmentRight:
-			_ebeb := _fcc(_bba.symbols)
+			_ebeb := _fcc(line.symbols)
 			_ggd = _bfd._bde - _eb - _ebeb
 		case sml.ST_HorizontalAlignmentCenter:
-			_eccg := _fcc(_bba.symbols)
+			_eccg := _fcc(line.symbols)
 			_ggd = (_bfd._bde - _eccg) / 2
 		}
-		for _, _acd := range _bba.symbols {
-			_acd._ebaf += _ggd
+		for _, _acd := range line.symbols {
+			_acd.left += _ggd
 		}
 	}
 }
@@ -921,14 +922,14 @@ func (_ecgd *convertContext) alignSymbolsVertically(_aac *cell, _dff sml.ST_Vert
 			_bgae += 4 * _bf
 		}
 		for _, _gfe := range _aac.lines {
-			_bgae += _gfe._fdfc
-			_gfe._aabb = _bgae
+			_bgae += _gfe.fontSize
+			_gfe.lineSpace = _bgae
 			_bgae += _ec
 		}
 	case sml.ST_VerticalAlignmentCenter:
 		_ebg := 0.0
 		for _, _eea := range _aac.lines {
-			_ebg += _eea._fdfc + _gefg(1)
+			_ebg += _eea.fontSize + _gefg(1)
 		}
 		_bgae = 0.5 * (_aac._gaa - _ebg)
 		if _aac._cccb {
@@ -937,8 +938,8 @@ func (_ecgd *convertContext) alignSymbolsVertically(_aac *cell, _dff sml.ST_Vert
 			_bgae += 2 * _bf
 		}
 		for _, _feed := range _aac.lines {
-			_bgae += _feed._fdfc + 0.5*_ec
-			_feed._aabb = _bgae
+			_bgae += _feed.fontSize + 0.5*_ec
+			_feed.lineSpace = _bgae
 			_bgae += 0.5 * _ec
 		}
 	default:
@@ -949,8 +950,8 @@ func (_ecgd *convertContext) alignSymbolsVertically(_aac *cell, _dff sml.ST_Vert
 			_bgae += _bf
 		}
 		for _ecc := len(_aac.lines) - 1; _ecc >= 0; _ecc-- {
-			_aac.lines[_ecc]._aabb = _bgae
-			_bgae -= _aac.lines[_ecc]._fdfc
+			_aac.lines[_ecc].lineSpace = _bgae
+			_bgae -= _aac.lines[_ecc].fontSize
 			_bgae -= _ec
 		}
 	}
@@ -1329,15 +1330,15 @@ func (ctx *convertContext) drawPage(_page *page) {
 			for _, _ebad := range _bee.lines {
 				for _, _ddfa := range _ebad.symbols {
 					if _abfd && !_fadd {
-						_fadd = _ddfa._ebaf < 0
+						_fadd = _ddfa.left < 0
 					}
 					if _bbf && !_fdf {
-						_fdf = _bee._bde < _ddfa._ebaf+_ddfa._fceca
+						_fdf = _bee._bde < _ddfa.left+_ddfa._fceca
 					}
-					if _bee._bffg+_ddfa._ebaf >= _bee._bbbc && _bee._bffg+_ddfa._ebaf+_ddfa._fceca <= _bee._gbge {
+					if _bee._bffg+_ddfa.left >= _bee._bbbc && _bee._bffg+_ddfa.left+_ddfa._fceca <= _bee._gbge {
 						_ege := ctx.creator.NewStyledParagraph()
-						_gda := _egc + _bee._bffg + _ddfa._ebaf
-						_fff := _dgce + _aeab._fffd + _ebad._aabb - _ddfa._fgfag - _gefg(0.5)
+						_gda := _egc + _bee._bffg + _ddfa.left
+						_fff := _dgce + _aeab._fffd + _ebad.lineSpace - _ddfa._fgfag - _gefg(0.5)
 						_ege.SetPos(_gda, _fff)
 						var _ccg *creator.TextChunk
 						if _ddfa._cbeg != "" {
@@ -1423,7 +1424,7 @@ type cell struct {
 	_aaee     bool
 }
 
-func _bgab(_cef []*symbol) float64 {
+func findMax(_cef []*symbol) float64 {
 	_accc := 0.0
 	for _, _edb := range _cef {
 		if _edb._fgfag > _accc {
