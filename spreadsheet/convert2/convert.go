@@ -1,7 +1,6 @@
 package convert2
 
 import (
-	"fmt"
 	_a "image"
 	"strconv"
 
@@ -12,10 +11,10 @@ import (
 	_be "github.com/unidoc/unioffice/schema/soo/dml"
 	_cf "github.com/unidoc/unioffice/schema/soo/dml/chart"
 	_bb "github.com/unidoc/unioffice/schema/soo/ofc/sharedTypes"
-	_ced "github.com/unidoc/unioffice/schema/soo/sml"
+	"github.com/unidoc/unioffice/schema/soo/sml"
 	_d "github.com/unidoc/unioffice/spreadsheet"
 	_f "github.com/unidoc/unioffice/spreadsheet/reference"
-	_e "github.com/unidoc/unipdf/v3/creator"
+	"github.com/unidoc/unipdf/v3/creator"
 	"github.com/unidoc/unipdf/v3/model"
 )
 
@@ -39,29 +38,29 @@ func (_bdba *convertContext) determineMaxIndexes() {
 }
 
 // ConvertToPdf converts a sheet to a PDF file. This package is beta, breaking changes can take place.
-func ConvertToPdf(sheet *_d.Sheet) *_e.Creator {
-	_ge := sheet.X()
-	if _ge == nil {
+func ConvertToPdf(sheet *_d.Sheet) *creator.Creator {
+	sheetX := sheet.X()
+	if sheetX == nil {
 		return nil
 	}
-	var pagesize _e.PageSize
+	var pagesize creator.PageSize
 	var _acc bool
-	if _cb := _ge.PageSetup; _cb != nil {
+	if _cb := sheetX.PageSetup; _cb != nil {
 		if _bac := _cb.PaperSizeAttr; _bac != nil {
 			pagesize = _egac[*_bac]
 		}
-		_acc = _cb.OrientationAttr == _ced.ST_OrientationLandscape
+		_acc = _cb.OrientationAttr == sml.ST_OrientationLandscape
 	}
-	if (pagesize == _e.PageSize{}) {
+	if (pagesize == creator.PageSize{}) {
 		pagesize = _egac[1]
 	}
 	if _acc {
 		pagesize[0], pagesize[1] = pagesize[1], pagesize[0]
 	}
-	_af := _e.New()
-	_af.SetPageSize(pagesize)
+	pdfCreator := creator.New()
+	pdfCreator.SetPageSize(pagesize)
 	var topAttr, bottomAttr, leftAttr, rightAttr float64
-	if _gab := _ge.PageMargins; _gab != nil {
+	if _gab := sheetX.PageMargins; _gab != nil {
 		leftAttr = _gab.LeftAttr
 		rightAttr = _gab.RightAttr
 		topAttr = _gab.TopAttr
@@ -77,14 +76,18 @@ func ConvertToPdf(sheet *_d.Sheet) *_e.Creator {
 	bottomAttr *= _ae.Inch
 	leftAttr *= _ae.Inch
 	rightAttr *= _ae.Inch
-	_af.SetPageMargins(leftAttr, rightAttr, topAttr, bottomAttr)
+	pdfCreator.SetPageMargins(leftAttr, rightAttr, topAttr, bottomAttr)
 	_fb := sheet.Workbook()
 	var _ad *_be.Theme
 	if len(_fb.Themes()) > 0 {
 		_ad = _fb.Themes()[0]
 	}
+	var scale uint32 = 100
+	if sheetX.PageSetup.ScaleAttr != nil {
+		scale = *sheetX.PageSetup.ScaleAttr
+	}
 	_ef := &convertContext{
-		creator:    _af,
+		creator:    pdfCreator,
 		sheet:      sheet,
 		workbook:   sheet.Workbook(),
 		_ggce:      _ad,
@@ -93,12 +96,13 @@ func ConvertToPdf(sheet *_d.Sheet) *_e.Creator {
 		_ebae:      leftAttr,
 		pageHeight: pagesize[1] - bottomAttr - topAttr,
 		pageWidth:  pagesize[0] - rightAttr - leftAttr,
+		scale:      scale,
 	}
 	_ef.makeAnchors()
 	_ef.determineMaxIndexes()
 	if _ef._dbc == 0 && _ef._face == 0 {
-		_af.NewPage()
-		return _af
+		pdfCreator.NewPage()
+		return pdfCreator
 	}
 	_ef.makeCols()
 	_ef.makeRows()
@@ -110,7 +114,7 @@ func ConvertToPdf(sheet *_d.Sheet) *_e.Creator {
 	_ef.fillPages()
 	_ef.distributeAnchors()
 	_ef.drawSheet()
-	return _af
+	return pdfCreator
 }
 
 type style struct {
@@ -127,8 +131,8 @@ type style struct {
 	border3  *border
 	border4  *border
 	_gea     bool
-	_egd     _ced.ST_VerticalAlignment
-	_cbef    _ced.ST_HorizontalAlignment
+	_egd     sml.ST_VerticalAlignment
+	_cbef    sml.ST_HorizontalAlignment
 }
 
 func (_afeb *convertContext) imageFromAnchor(_acf *anchor, _gca, _bdcb float64) _a.Image {
@@ -146,7 +150,7 @@ func (_afeb *convertContext) imageFromAnchor(_acf *anchor, _gca, _bdcb float64) 
 	return nil
 }
 func _bgfc(_fdfe *symbol) {
-	_cgfg := _e.New()
+	_cgfg := creator.New()
 	_bcca := _cgfg.NewStyledParagraph()
 	_bcca.SetMargins(0, 0, 0, 0)
 	_dee := _bcca.Append(_fdfe.value)
@@ -192,14 +196,11 @@ func (_dda *convertContext) fillPages() {
 		}
 	}
 }
-func (_cgg *convertContext) getContentFromCell(cell _d.Cell, _eged *style, _cga float64, _gdeg bool) ([]*line, _ced.ST_CellType) {
+func (_cgg *convertContext) getContentFromCell(cell _d.Cell, _eged *style, _cga float64, _gdeg bool) ([]*line, sml.ST_CellType) {
 	_gdd := cell.X()
-	if cell.Reference() == "A22" {
-		fmt.Println("A22")
-	}
 	var cellSymbols []*symbol
 	switch _gdd.TAttr {
-	case _ced.ST_CellTypeS:
+	case sml.ST_CellTypeS:
 		_ggf := _gdd.V
 		if _ggf != nil {
 			_ega, _aceg := strconv.Atoi(*_ggf)
@@ -212,7 +213,7 @@ func (_cgg *convertContext) getContentFromCell(cell _d.Cell, _eged *style, _cga 
 				}
 			}
 		}
-	case _ced.ST_CellTypeB:
+	case sml.ST_CellTypeB:
 		_gfag := _gdd.V
 		if _gfag != nil {
 			if *_gfag == "\u0030" {
@@ -221,7 +222,7 @@ func (_cgg *convertContext) getContentFromCell(cell _d.Cell, _eged *style, _cga 
 				cellSymbols = _cgg.getSymbolsFromString("\u0054\u0052\u0055\u0045", _eged)
 			}
 		}
-	case _ced.ST_CellTypeStr:
+	case sml.ST_CellTypeStr:
 		cellSymbols = _cgg.getSymbolsFromString(cell.GetFormattedValue(), _eged)
 	default:
 		cellSymbols = _cgg.getSymbolsFromString(cell.GetFormattedValue(), _eged)
@@ -251,7 +252,7 @@ func (_cgg *convertContext) getContentFromCell(cell _d.Cell, _eged *style, _cga 
 			if symbol1.value == "\n" {
 				_dbea := _bgab(symbols)
 				//control line spacing.
-				_dbea -= 3
+				_dbea -= 2.5
 				lines = append(lines, &line{_aabb: _gdg, symbols: symbols, _fdfc: _dbea})
 				symbols = []*symbol{symbol1}
 				_bff = symbol1._fceca
@@ -289,15 +290,15 @@ func (_cgg *convertContext) getContentFromCell(cell _d.Cell, _eged *style, _cga 
 		}
 	}
 	_daf := _gdd.TAttr
-	if _daf == _ced.ST_CellTypeUnset {
-		_daf = _ced.ST_CellTypeN
+	if _daf == sml.ST_CellTypeUnset {
+		_daf = sml.ST_CellTypeN
 	}
 	return lines, _daf
 }
 
 // RegisterFontsFromDirectory registers all fonts from the given directory automatically detecting font families and styles.
-func RegisterFontsFromDirectory(dirName string) error { return _gb.RegisterFontsFromDirectory(dirName) }
-func (ctx *convertContext) getStyleFromRPrElt(cellStyle *_ced.CT_RPrElt) *style {
+func RegisterFontsFromDirectory(dirName string) error { return registerFontsFromDirectory(dirName) }
+func (ctx *convertContext) getStyleFromRPrElt(cellStyle *sml.CT_RPrElt) *style {
 	if cellStyle == nil {
 		return nil
 	}
@@ -312,7 +313,7 @@ func (ctx *convertContext) getStyleFromRPrElt(cellStyle *_ced.CT_RPrElt) *style 
 		style1._gdgae = &_gbfg
 	}
 	if _ddb := cellStyle.U; _ddb != nil {
-		_ddfc := _ddb.ValAttr == _ced.ST_UnderlineValuesSingle || _ddb.ValAttr == _ced.ST_UnderlineValuesUnset
+		_ddfc := _ddb.ValAttr == sml.ST_UnderlineValuesSingle || _ddb.ValAttr == sml.ST_UnderlineValuesUnset
 		style1._bcd = &_ddfc
 	}
 	if _dgee := cellStyle.VertAlign; _dgee != nil {
@@ -323,10 +324,6 @@ func (ctx *convertContext) getStyleFromRPrElt(cellStyle *_ced.CT_RPrElt) *style 
 	}
 	if _cad := cellStyle.Sz; _cad != nil {
 		fontsize := _cad.ValAttr / 12 * _gb.DefaultFontSize
-		scale := ctx.sheet.X().PageSetup.ScaleAttr
-		if scale != nil {
-			fmt.Println("fontsize", fontsize, *scale)
-		}
 		style1.fontSize = &fontsize
 	}
 	if _bfdd := cellStyle.Color; _bfdd != nil {
@@ -343,16 +340,18 @@ func (context *convertContext) makeCols() {
 		for _, col := range ct_col[0].Col {
 			width := 65.0
 			if _fbe := col.WidthAttr; _fbe != nil {
+				//Chieu rong tinh bang so characters
 				if *_fbe > 0.83 {
 					*_fbe -= 0.83
 				}
 				if *_fbe <= 1 {
 					width = *_fbe * 11
 				} else {
-					width = 5 + *_fbe*6
+					//width = 5 + *_fbe*6
+					width = 5 + *_fbe*5.520
 				}
 			}
-			if *col.HiddenAttr {
+			if col.HiddenAttr != nil && *col.HiddenAttr {
 				width = 0
 			}
 			minAttr := int(col.MinAttr - 1)
@@ -367,8 +366,6 @@ func (context *convertContext) makeCols() {
 		}
 	}
 	idx := 0
-	ws := context.sheet.X().CT_Worksheet
-	ps := ws.PageSetup
 	for i := 0; i <= context._face; i++ {
 		var width float64
 		var style *style
@@ -386,8 +383,8 @@ func (context *convertContext) makeCols() {
 				width = 65
 			}
 		}
-		if ps.ScaleAttr != nil && *ps.ScaleAttr != 100 {
-			width = width * (float64(*ps.ScaleAttr) / 100)
+		if context.scale != 100 {
+			width = width * ((float64(context.scale)) / 100)
 		}
 		colInfos = append(colInfos, &colInfo{width: width, style: style})
 	}
@@ -521,7 +518,7 @@ type symbol struct {
 	_ebaf  float64
 	_fgfag float64
 	_fceca float64
-	_fae   *_e.TextStyle
+	_fae   *creator.TextStyle
 	_cbeg  string
 }
 type rowspan struct {
@@ -541,7 +538,7 @@ func _fcc(_ffd []*symbol) float64 {
 	return _ebf
 }
 
-var _egac = map[uint32]_e.PageSize{1: _e.PageSize{8.5 * _ae.Inch, 11 * _ae.Inch}, 2: _e.PageSize{8.5 * _ae.Inch, 11 * _ae.Inch}, 3: _e.PageSize{11 * _ae.Inch, 17 * _ae.Inch}, 4: _e.PageSize{17 * _ae.Inch, 11 * _ae.Inch}, 5: _e.PageSize{8.5 * _ae.Inch, 14 * _ae.Inch}, 6: _e.PageSize{5.5 * _ae.Inch, 8.5 * _ae.Inch}, 7: _e.PageSize{7.5 * _ae.Inch, 10 * _ae.Inch}, 8: _e.PageSize{_gefg(297), _gefg(420)}, 9: _e.PageSize{_gefg(210), _gefg(297)}, 10: _e.PageSize{_gefg(210), _gefg(297)}, 11: _e.PageSize{_gefg(148), _gefg(210)}, 70: _e.PageSize{_gefg(105), _gefg(148)}, 12: _e.PageSize{_gefg(250), _gefg(354)}, 13: _e.PageSize{_gefg(182), _gefg(257)}, 14: _e.PageSize{8.5 * _ae.Inch, 13 * _ae.Inch}, 20: _e.PageSize{4.125 * _ae.Inch, 9.5 * _ae.Inch}, 27: _e.PageSize{_gefg(110), _gefg(220)}, 28: _e.PageSize{_gefg(162), _gefg(229)}, 34: _e.PageSize{_gefg(250), _gefg(176)}, 29: _e.PageSize{_gefg(324), _gefg(458)}, 30: _e.PageSize{_gefg(229), _gefg(324)}, 31: _e.PageSize{_gefg(114), _gefg(162)}, 37: _e.PageSize{3.88 * _ae.Inch, 7.5 * _ae.Inch}, 43: _e.PageSize{_gefg(100), _gefg(148)}, 69: _e.PageSize{_gefg(200), _gefg(148)}}
+var _egac = map[uint32]creator.PageSize{1: creator.PageSize{8.5 * _ae.Inch, 11 * _ae.Inch}, 2: creator.PageSize{8.5 * _ae.Inch, 11 * _ae.Inch}, 3: creator.PageSize{11 * _ae.Inch, 17 * _ae.Inch}, 4: creator.PageSize{17 * _ae.Inch, 11 * _ae.Inch}, 5: creator.PageSize{8.5 * _ae.Inch, 14 * _ae.Inch}, 6: creator.PageSize{5.5 * _ae.Inch, 8.5 * _ae.Inch}, 7: creator.PageSize{7.5 * _ae.Inch, 10 * _ae.Inch}, 8: creator.PageSize{_gefg(297), _gefg(420)}, 9: creator.PageSize{_gefg(210), _gefg(297)}, 10: creator.PageSize{_gefg(210), _gefg(297)}, 11: creator.PageSize{_gefg(148), _gefg(210)}, 70: creator.PageSize{_gefg(105), _gefg(148)}, 12: creator.PageSize{_gefg(250), _gefg(354)}, 13: creator.PageSize{_gefg(182), _gefg(257)}, 14: creator.PageSize{8.5 * _ae.Inch, 13 * _ae.Inch}, 20: creator.PageSize{4.125 * _ae.Inch, 9.5 * _ae.Inch}, 27: creator.PageSize{_gefg(110), _gefg(220)}, 28: creator.PageSize{_gefg(162), _gefg(229)}, 34: creator.PageSize{_gefg(250), _gefg(176)}, 29: creator.PageSize{_gefg(324), _gefg(458)}, 30: creator.PageSize{_gefg(229), _gefg(324)}, 31: creator.PageSize{_gefg(114), _gefg(162)}, 37: creator.PageSize{3.88 * _ae.Inch, 7.5 * _ae.Inch}, 43: creator.PageSize{_gefg(100), _gefg(148)}, 69: creator.PageSize{_gefg(200), _gefg(148)}}
 
 type line struct {
 	_aabb   float64
@@ -552,7 +549,7 @@ type line struct {
 const _ac = 0.25
 const _bd = 2
 
-var _fg = _gefg(0.0625)
+var border_base = _gefg(0.0625 * 3)
 
 func (ctx *convertContext) makePages() {
 	for _, _dbb := range ctx.pages_span {
@@ -562,7 +559,7 @@ func (ctx *convertContext) makePages() {
 	}
 }
 func _becc(_ece *bool) bool { return _ece != nil && *_ece }
-func (_bbeg *convertContext) getImage(_cdc _a.Image, _aadd, _fefg, _cebd, _dga, _gdfe, _adag float64, _aeef _gb.ImgPart) *_e.Image {
+func (_bbeg *convertContext) getImage(_cdc _a.Image, _aadd, _fefg, _cebd, _dga, _gdfe, _adag float64, _aeef _gb.ImgPart) *creator.Image {
 	_dga += _bbeg._bcag
 	_cebd += _bbeg._ebae
 	_cdcb, _edg := _gb.GetImage(_bbeg.creator, _cdc, _aadd, _fefg, _cebd, _dga, _gdfe, _adag, _aeef)
@@ -603,7 +600,7 @@ func (_ebeg *convertContext) getStyle(_dfe *uint32) *style {
 		}
 		for _, _cbecd := range _faga.U {
 			if _cbecd != nil {
-				_add := _cbecd.ValAttr == _ced.ST_UnderlineValuesSingle || _cbecd.ValAttr == _ced.ST_UnderlineValuesUnset
+				_add := _cbecd.ValAttr == sml.ST_UnderlineValuesSingle || _cbecd.ValAttr == sml.ST_UnderlineValuesUnset
 				_aagfa._bcd = &_add
 				_fdg = true
 				break
@@ -655,11 +652,11 @@ func (_ebeg *convertContext) getStyle(_dfe *uint32) *style {
 			_aagfa._gea = true
 			_fdg = true
 		}
-		if _dcg := _cee.GetVerticalAlignment(); _dcg != _ced.ST_VerticalAlignmentUnset {
+		if _dcg := _cee.GetVerticalAlignment(); _dcg != sml.ST_VerticalAlignmentUnset {
 			_aagfa._egd = _dcg
 			_fdg = true
 		}
-		if _adfg := _cee.GetHorizontalAlignment(); _adfg != _ced.ST_HorizontalAlignmentUnset {
+		if _adfg := _cee.GetHorizontalAlignment(); _adfg != sml.ST_HorizontalAlignmentUnset {
 			_aagfa._cbef = _adfg
 			_fdg = true
 		}
@@ -672,40 +669,42 @@ func (_ebeg *convertContext) getStyle(_dfe *uint32) *style {
 
 const _ga = 0.64
 
-func (_cbee *convertContext) getBorder(_afbf *_ced.CT_BorderPr) *border {
-	_afbd := &border{}
-	switch _afbf.StyleAttr {
-	case _ced.ST_BorderStyleThin:
-		_afbd._fbbf = _fg
-	case _ced.ST_BorderStyleMedium:
-		_afbd._fbbf = _fg * 2
-	case _ced.ST_BorderStyleThick:
-		_afbd._fbbf = _fg * 4
+func (_cbee *convertContext) getBorder(ct_border *sml.CT_BorderPr) *border {
+	border := &border{}
+	switch ct_border.StyleAttr {
+	case sml.ST_BorderStyleThin:
+		border.thickness = border_base
+	case sml.ST_BorderStyleMedium:
+		border.thickness = border_base * 2
+	case sml.ST_BorderStyleThick:
+		border.thickness = border_base * 4
 	}
-	if _afbd._fbbf == 0.0 {
+	if border.thickness == 0.0 {
 		return nil
 	}
-	if _edbf := _afbf.Color; _edbf != nil {
+	if _edbf := ct_border.Color; _edbf != nil {
 		_abfa := _cbee.getColorStringFromSmlColor(_edbf)
 		if _abfa != nil {
-			_afbd._adbf = _e.ColorRGBFromHex(*_abfa)
+			border.color = creator.ColorRGBFromHex(*_abfa)
 		} else {
-			_afbd._adbf = _e.ColorBlack
+			border.color = creator.ColorBlack
 		}
+	} else {
+		border.color = creator.ColorBlack
 	}
-	return _afbd
+	return border
 }
 
 type rowInfo struct {
-	_fffd  float64
-	_bgc   bool
-	height float64
-	style  *style
-	cells  []*cell
-	_fggg  float64
+	_fffd       float64
+	_bgc        bool
+	height      float64
+	style       *style
+	cells       []*cell
+	borderWidth float64
 }
 type convertContext struct {
-	creator     *_e.Creator
+	creator     *creator.Creator
 	workbook    *_d.Workbook
 	_ggce       *_be.Theme
 	sheet       *_d.Sheet
@@ -723,6 +722,7 @@ type convertContext struct {
 	pageWidth   float64
 	mergedCells []*mergedCell
 	_abba       []*anchor
+	scale       uint32
 }
 
 func _adce(_bdac, _addc *style) {
@@ -769,10 +769,10 @@ func _adce(_bdac, _addc *style) {
 	if _bdac.border4 == nil {
 		_bdac.border4 = _addc.border4
 	}
-	if _bdac._egd == _ced.ST_VerticalAlignmentUnset {
+	if _bdac._egd == sml.ST_VerticalAlignmentUnset {
 		_bdac._egd = _addc._egd
 	}
-	if _bdac._cbef == _ced.ST_HorizontalAlignmentUnset {
+	if _bdac._cbef == sml.ST_HorizontalAlignmentUnset {
 		_bdac._cbef = _addc._cbef
 	}
 }
@@ -786,8 +786,8 @@ func (_fgce *convertContext) drawSheet() {
 				}
 			}
 		}
-		_eaf := _eebe._eed[:_ddaf]
-		for _, _bbee := range _eaf {
+		pages := _eebe._eed[:_ddaf]
+		for _, _bbee := range pages {
 			_fgce.creator.NewPage()
 			_fgce.drawPage(_bbee)
 		}
@@ -824,26 +824,26 @@ type colInfo struct {
 	style *style
 }
 
-func (_gacg *convertContext) alignSymbolsHorizontally(_bfd *cell, _cab _ced.ST_HorizontalAlignment) {
-	if _cab == _ced.ST_HorizontalAlignmentUnset {
+func (_gacg *convertContext) alignSymbolsHorizontally(_bfd *cell, _cab sml.ST_HorizontalAlignment) {
+	if _cab == sml.ST_HorizontalAlignmentUnset {
 		switch _bfd.cellType {
-		case _ced.ST_CellTypeB:
-			_cab = _ced.ST_HorizontalAlignmentCenter
-		case _ced.ST_CellTypeN:
-			_cab = _ced.ST_HorizontalAlignmentRight
+		case sml.ST_CellTypeB:
+			_cab = sml.ST_HorizontalAlignmentCenter
+		case sml.ST_CellTypeN:
+			_cab = sml.ST_HorizontalAlignmentRight
 		default:
-			_cab = _ced.ST_HorizontalAlignmentLeft
+			_cab = sml.ST_HorizontalAlignmentLeft
 		}
 	}
 	var _ggd float64
 	for _, _bba := range _bfd.lines {
 		switch _cab {
-		case _ced.ST_HorizontalAlignmentLeft:
+		case sml.ST_HorizontalAlignmentLeft:
 			_ggd = _eb
-		case _ced.ST_HorizontalAlignmentRight:
+		case sml.ST_HorizontalAlignmentRight:
 			_ebeb := _fcc(_bba.symbols)
 			_ggd = _bfd._bde - _eb - _ebeb
-		case _ced.ST_HorizontalAlignmentCenter:
+		case sml.ST_HorizontalAlignmentCenter:
 			_eccg := _fcc(_bba.symbols)
 			_ggd = (_bfd._bde - _eccg) / 2
 		}
@@ -895,7 +895,7 @@ func (_dbed *convertContext) getStyleFromCell(_abbad _d.Cell, _abe, _cfe *style)
 	_adce(_gdfb, _cfe)
 	return _gdfb
 }
-func (_fddf *convertContext) getSymbolsFromR(_agdd []*_ced.CT_RElt, _gdga *style) []*symbol {
+func (_fddf *convertContext) getSymbolsFromR(_agdd []*sml.CT_RElt, _gdga *style) []*symbol {
 	symbols := []*symbol{}
 	for _, _fcfd := range _agdd {
 		//style := _fddf.combineCellStyleWithRPrElt(_gdga, _fcfd.RPr)
@@ -910,10 +910,10 @@ func (_fddf *convertContext) getSymbolsFromR(_agdd []*_ced.CT_RElt, _gdga *style
 var _ca = 3.025 / _gefg(1)
 var _ceag = []string{"\u0030\u0030\u0030\u0030\u0030\u0030", "\u0066\u0066\u0066\u0066\u0066\u0066", "\u0066\u0066\u0030\u0030\u0030\u0030", "\u0030\u0030\u0066\u0066\u0030\u0030", "\u0030\u0030\u0030\u0030\u0066\u0066", "\u0066\u0066\u0066\u0066\u0030\u0030", "\u0066\u0066\u0030\u0030\u0066\u0066", "\u0030\u0030\u0066\u0066\u0066\u0066", "\u0030\u0030\u0030\u0030\u0030\u0030", "\u0066\u0066\u0066\u0066\u0066\u0066", "\u0066\u0066\u0030\u0030\u0030\u0030", "\u0030\u0030\u0066\u0066\u0030\u0030", "\u0030\u0030\u0030\u0030\u0066\u0066", "\u0066\u0066\u0066\u0066\u0030\u0030", "\u0066\u0066\u0030\u0030\u0066\u0066", "\u0030\u0030\u0066\u0066\u0066\u0066", "\u0038\u0030\u0030\u0030\u0030\u0030", "\u0030\u0030\u0038\u0030\u0030\u0030", "\u0030\u0030\u0030\u0030\u0038\u0030", "\u0038\u0030\u0038\u0030\u0030\u0030", "\u0038\u0030\u0030\u0030\u0038\u0030", "\u0030\u0030\u0038\u0030\u0038\u0030", "\u0063\u0030\u0063\u0030\u0063\u0030", "\u0038\u0030\u0038\u0030\u0038\u0030", "\u0039\u0039\u0039\u0039\u0066\u0066", "\u0039\u0039\u0033\u0033\u0036\u0036", "\u0066\u0066\u0066\u0066\u0063\u0063", "\u0063\u0063\u0066\u0066\u0066\u0066", "\u0036\u0036\u0030\u0030\u0036\u0036", "\u0066\u0066\u0038\u0030\u0038\u0030", "\u0030\u0030\u0036\u0036\u0063\u0063", "\u0063\u0063\u0063\u0063\u0066\u0066", "\u0030\u0030\u0030\u0030\u0038\u0030", "\u0066\u0066\u0030\u0030\u0066\u0066", "\u0066\u0066\u0066\u0066\u0030\u0030", "\u0030\u0030\u0066\u0066\u0066\u0066", "\u0038\u0030\u0030\u0030\u0038\u0030", "\u0038\u0030\u0030\u0030\u0030\u0030", "\u0030\u0030\u0038\u0030\u0038\u0030", "\u0030\u0030\u0030\u0030\u0066\u0066", "\u0030\u0030\u0063\u0063\u0066\u0066", "\u0063\u0063\u0066\u0066\u0066\u0066", "\u0063\u0063\u0066\u0066\u0063\u0063", "\u0066\u0066\u0066\u0066\u0039\u0039", "\u0039\u0039\u0063\u0063\u0066\u0066", "\u0066\u0066\u0039\u0039\u0063\u0063", "\u0063\u0063\u0039\u0039\u0066\u0066", "\u0066\u0066\u0063\u0063\u0039\u0039", "\u0033\u0033\u0036\u0036\u0066\u0066", "\u0033\u0033\u0063\u0063\u0063\u0063", "\u0039\u0039\u0063\u0063\u0030\u0030", "\u0066\u0066\u0063\u0063\u0030\u0030", "\u0066\u0066\u0039\u0039\u0030\u0030", "\u0066\u0066\u0036\u0036\u0030\u0030", "\u0036\u0036\u0036\u0036\u0039\u0039", "\u0039\u0036\u0039\u0036\u0039\u0036", "\u0030\u0030\u0033\u0033\u0036\u0036", "\u0033\u0033\u0039\u0039\u0036\u0036", "\u0030\u0030\u0033\u0033\u0030\u0030", "\u0033\u0033\u0033\u0033\u0030\u0030", "\u0039\u0039\u0033\u0033\u0030\u0030", "\u0039\u0039\u0033\u0033\u0036\u0036", "\u0033\u0033\u0033\u0033\u0039\u0039", "\u0033\u0033\u0033\u0033\u0033\u0033"}
 
-func (_ecgd *convertContext) alignSymbolsVertically(_aac *cell, _dff _ced.ST_VerticalAlignment) {
+func (_ecgd *convertContext) alignSymbolsVertically(_aac *cell, _dff sml.ST_VerticalAlignment) {
 	var _bgae float64
 	switch _dff {
-	case _ced.ST_VerticalAlignmentTop:
+	case sml.ST_VerticalAlignmentTop:
 		_bgae = _bd
 		if _aac._cccb {
 			_bgae -= _bf
@@ -925,7 +925,7 @@ func (_ecgd *convertContext) alignSymbolsVertically(_aac *cell, _dff _ced.ST_Ver
 			_gfe._aabb = _bgae
 			_bgae += _ec
 		}
-	case _ced.ST_VerticalAlignmentCenter:
+	case sml.ST_VerticalAlignmentCenter:
 		_ebg := 0.0
 		for _, _eea := range _aac.lines {
 			_ebg += _eea._fdfc + _gefg(1)
@@ -955,7 +955,7 @@ func (_ecgd *convertContext) alignSymbolsVertically(_aac *cell, _dff _ced.ST_Ver
 		}
 	}
 }
-func (_feg *convertContext) combineCellStyleWithRPrElt(style1 *style, cellStyle *_ced.CT_RPrElt) *style {
+func (_feg *convertContext) combineCellStyleWithRPrElt(style1 *style, cellStyle *sml.CT_RPrElt) *style {
 	style := *style1
 	styleFromCell := _feg.getStyleFromRPrElt(cellStyle)
 	if styleFromCell == nil {
@@ -1066,7 +1066,7 @@ func (_bg *convertContext) makeAnchors() {
 		}
 	}
 }
-func (_def *convertContext) getColorStringFromSmlColor(_bec *_ced.CT_Color) *string {
+func (_def *convertContext) getColorStringFromSmlColor(_bec *sml.CT_Color) *string {
 	var _bbcbg string
 	if _bec.RgbAttr != nil {
 		_bbcbg = *_bec.RgbAttr
@@ -1111,7 +1111,7 @@ func (context *convertContext) makeCells() {
 	rowIdx := 0
 	for _, row := range context.rowInfo {
 		row.cells = []*cell{}
-		_gfc := 0.0
+		max_thickness := 0.0
 		rowStyle := row.style
 		if row._bgc {
 			sheetRow := sheetRows[rowIdx]
@@ -1150,8 +1150,8 @@ func (context *convertContext) makeCells() {
 				style := context.getStyleFromCell(scell, rowStyle, _dc)
 				var _ed, _eeff, _aad bool
 				var border1, border2, border3, border4 *border
-				var _eab _ced.ST_VerticalAlignment
-				var _ceg _ced.ST_HorizontalAlignment
+				var _eab sml.ST_VerticalAlignment
+				var _ceg sml.ST_HorizontalAlignment
 
 				if style != nil {
 					if !_bdd {
@@ -1166,8 +1166,8 @@ func (context *convertContext) makeCells() {
 					if !_dea {
 						border4 = style.border4
 					}
-					if border2 != nil && border2._fbbf > _gfc {
-						_gfc = border2._fbbf
+					if border2 != nil && border2.thickness > max_thickness {
+						max_thickness = border2.thickness
 					}
 					_eab = style._egd
 					_ceg = style._cbef
@@ -1193,7 +1193,7 @@ func (context *convertContext) makeCells() {
 				row.cells = append(row.cells, _affd)
 			}
 		}
-		row._fggg = _gfc
+		row.borderWidth = max_thickness
 	}
 }
 
@@ -1210,31 +1210,31 @@ type anchor struct {
 	_gag  int64
 }
 
-func (_agdde *convertContext) makeTextStyleFromCellStyle(_eag *style) *_e.TextStyle {
-	textstyle := _agdde.creator.NewTextStyle()
+func (ctx *convertContext) makeTextStyleFromCellStyle(_style *style) *creator.TextStyle {
+	textstyle := ctx.creator.NewTextStyle()
 
-	if _eag == nil {
+	if _style == nil {
 		textstyle.FontSize = _gb.DefaultFontSize
 		textstyle.Font = _gb.AssignStdFontByName(textstyle, _gb.StdFontsMap["default"][FontStyle_Regular])
 		return &textstyle
 	}
-	if _becc(_eag._bcd) {
+	if _becc(_style._bcd) {
 		textstyle.Underline = true
-		textstyle.UnderlineStyle = _e.TextDecorationLineStyle{Offset: 0.5, Thickness: _gefg(1 / 32)}
+		textstyle.UnderlineStyle = creator.TextDecorationLineStyle{Offset: 0.5, Thickness: _gefg(float64(1) / 32)}
 	}
 	var _aebc FontStyle
-	if _becc(_eag.bold) && _becc(_eag._gdgae) {
+	if _becc(_style.bold) && _becc(_style._gdgae) {
 		_aebc = FontStyle_BoldItalic
-	} else if _becc(_eag.bold) {
+	} else if _becc(_style.bold) {
 		_aebc = FontStyle_Bold
-	} else if _becc(_eag._gdgae) {
+	} else if _becc(_style._gdgae) {
 		_aebc = FontStyle_Italic
 	} else {
 		_aebc = FontStyle_Regular
 	}
 	_eaec := "default"
-	if _eag.fontName != nil {
-		_eaec = *_eag.fontName
+	if _style.fontName != nil {
+		_eaec = *_style.fontName
 	}
 	delete(_gb.StdFontsMap, "Times New Roman")
 	if _fbd, _ebea := _gb.StdFontsMap[_eaec]; _ebea {
@@ -1246,17 +1246,22 @@ func (_agdde *convertContext) makeTextStyleFromCellStyle(_eag *style) *_e.TextSt
 		textstyle.Font = _gb.AssignStdFontByName(textstyle, _gb.StdFontsMap["default"][_aebc])
 	}
 
-	if _eag.fontSize != nil {
-		textstyle.FontSize = *_eag.fontSize
+	if _style.fontSize != nil {
+		textstyle.FontSize = *_style.fontSize
 	}
-	if _eag._gege != nil {
-		textstyle.Color = _e.ColorRGBFromHex(*_eag._gege)
+	if _style._gege != nil {
+		textstyle.Color = creator.ColorRGBFromHex(*_style._gege)
 	}
-	if _eag._ffab != nil && *_eag._ffab {
+	if _style._ffab != nil && *_style._ffab {
 		textstyle.FontSize *= _ga
-	} else if _eag._eac != nil && *_eag._eac {
+	} else if _style._eac != nil && *_style._eac {
 		textstyle.FontSize *= _ga
 	}
+
+	if ctx.scale != 100 {
+		textstyle.FontSize *= (float64(ctx.scale) / 100)
+	}
+
 	return &textstyle
 }
 func _gefg(_ccdb float64) float64 { return _ccdb * _ae.Millimeter }
@@ -1264,7 +1269,7 @@ func (_fdda *convertContext) makeRowspans() {
 	var _cbc float64
 	_ff := 0
 	for _cag, _bafe := range _fdda.rowInfo {
-		_cbb := _bafe.height + _bafe._fggg
+		_cbb := _bafe.height + _bafe.borderWidth
 		if _cbc+_cbb <= _fdda.pageHeight {
 			_bafe._fffd = _cbc
 			_cbc += _cbb
@@ -1279,8 +1284,8 @@ func (_fdda *convertContext) makeRowspans() {
 }
 
 type border struct {
-	_fbbf float64
-	_adbf _e.Color
+	thickness float64
+	color     creator.Color
 }
 
 func (_agf *convertContext) getSymbolsFromString(_gec string, _dadge *style) []*symbol {
@@ -1312,11 +1317,11 @@ func (_aabf *convertContext) addRowToPage(_dgeg []*cell, _aede int) {
 
 const _eb = 3
 
-func (_bdc *convertContext) drawPage(_fddc *page) {
-	_dgce := _bdc._bcag
-	_egc := _bdc._ebae
-	for _, _cdda := range _fddc._bdda {
-		_aeab := _bdc.rowInfo[_cdda._cdff]
+func (ctx *convertContext) drawPage(_page *page) {
+	_dgce := ctx._bcag
+	_egc := ctx._ebae
+	for _, _cdda := range _page._bdda {
+		_aeab := ctx.rowInfo[_cdda._cdff]
 		for _, _bee := range _cdda._cbdb {
 			_abfd := _bee._bbbc < _bee._bffg
 			_bbf := _bee._gbge > _bee._bffg+_bee._bde
@@ -1330,11 +1335,11 @@ func (_bdc *convertContext) drawPage(_fddc *page) {
 						_fdf = _bee._bde < _ddfa._ebaf+_ddfa._fceca
 					}
 					if _bee._bffg+_ddfa._ebaf >= _bee._bbbc && _bee._bffg+_ddfa._ebaf+_ddfa._fceca <= _bee._gbge {
-						_ege := _bdc.creator.NewStyledParagraph()
+						_ege := ctx.creator.NewStyledParagraph()
 						_gda := _egc + _bee._bffg + _ddfa._ebaf
 						_fff := _dgce + _aeab._fffd + _ebad._aabb - _ddfa._fgfag - _gefg(0.5)
 						_ege.SetPos(_gda, _fff)
-						var _ccg *_e.TextChunk
+						var _ccg *creator.TextChunk
 						if _ddfa._cbeg != "" {
 							_ccg = _ege.AddExternalLink(_ddfa.value, _ddfa._cbeg)
 						} else {
@@ -1343,51 +1348,51 @@ func (_bdc *convertContext) drawPage(_fddc *page) {
 						if _ddfa._fae != nil {
 							_ccg.Style = *_ddfa._fae
 						}
-						_bdc.creator.Draw(_ege)
+						ctx.creator.Draw(_ege)
 					}
 				}
 			}
 			var _afe, _aae, _gcg, _gcb, _dcc, _bbdc float64
-			var _caa, _efa, _dcde, _bfb _e.Color
+			var _caa, _efa, _dcde, _bfb creator.Color
 			if _adfe := _bee.border1; _adfe != nil {
-				_afe = _adfe._fbbf
-				_caa = _adfe._adbf
+				_afe = _adfe.thickness
+				_caa = _adfe.color
 			}
 			if _gdf := _bee.border2; _gdf != nil {
-				_aae = _gdf._fbbf
-				_efa = _gdf._adbf
+				_aae = _gdf.thickness
+				_efa = _gdf.color
 			}
 			if _fgg := _bee.border3; _fgg != nil {
-				_gcg = _fgg._fbbf
+				_gcg = _fgg.thickness
 				_dcc = _gcg / 2
-				_dcde = _fgg._adbf
+				_dcde = _fgg.color
 			}
 			if _gef := _bee.border4; _gef != nil {
-				_gcb = _gef._fbbf
+				_gcb = _gef.thickness
 				_bbdc = _gcb / 2
-				_bfb = _gef._adbf
+				_bfb = _gef.color
 			}
 			var _fba float64
 			if _cdda._cdff > 1 {
-				_fba = _bdc.rowInfo[_cdda._cdff-1]._fggg
+				_fba = ctx.rowInfo[_cdda._cdff-1].borderWidth
 			}
 			_bgg := _dgce + _aeab._fffd - 0.5*(_fba-_afe)
-			_dcdc := _dgce + _aeab._fffd + _aeab.height + 0.5*(_aeab._fggg+_aae)
+			_dcdc := _dgce + _aeab._fffd + _aeab.height + 0.5*(_aeab.borderWidth+_aae)
 			_beeb := _egc + _bee._bffg
 			_febf := _beeb + _bee._bcf
-			_gb.DrawLine(_bdc.creator, _beeb, _bgg, _febf, _bgg, _afe, _caa)
-			_gb.DrawLine(_bdc.creator, _beeb, _dcdc, _febf, _dcdc, _aae, _efa)
+			_gb.DrawLine(ctx.creator, _beeb, _bgg, _febf, _bgg, _afe, _caa)
+			_gb.DrawLine(ctx.creator, _beeb, _dcdc, _febf, _dcdc, _aae, _efa)
 			if !_fadd {
-				_gb.DrawLine(_bdc.creator, _beeb-_dcc, _bgg, _beeb-_dcc, _dcdc, _gcg, _dcde)
+				_gb.DrawLine(ctx.creator, _beeb-_dcc, _bgg, _beeb-_dcc, _dcdc, _gcg, _dcde)
 			}
 			if !_fdf {
-				_gb.DrawLine(_bdc.creator, _febf-_bbdc, _bgg, _febf-_bbdc, _dcdc, _gcb, _bfb)
+				_gb.DrawLine(ctx.creator, _febf-_bbdc, _bgg, _febf-_bbdc, _dcdc, _gcb, _bfb)
 			}
 		}
 	}
-	for _, _dae := range _fddc._agc {
+	for _, _dae := range _page._agc {
 		if _dae != nil {
-			_bdc.creator.Draw(_dae)
+			ctx.creator.Draw(_dae)
 		}
 	}
 }
@@ -1395,12 +1400,12 @@ func (_bdc *convertContext) drawPage(_fddc *page) {
 type page struct {
 	_bdda []*pageRow
 	_ebbf bool
-	_agc  []*_e.Image
+	_agc  []*creator.Image
 	_cbf  *pagespan
 	_ebdd *rowspan
 }
 type cell struct {
-	cellType  _ced.ST_CellType
+	cellType  sml.ST_CellType
 	_gdfg     int
 	_bffg     float64
 	lines     []*line
@@ -1409,7 +1414,7 @@ type cell struct {
 	_gaa      float64
 	_bbbc     float64
 	_gbge     float64
-	textStyle *_e.TextStyle
+	textStyle *creator.TextStyle
 	border1   *border
 	border2   *border
 	border3   *border
@@ -1446,7 +1451,8 @@ func (_cde *convertContext) makeRows() {
 		} else {
 			_bfg = *_aff.X().HtAttr
 		}
-		if *_aff.X().HiddenAttr {
+		hidden := _aff.X().HiddenAttr
+		if hidden != nil && *hidden {
 			_bfg = 0
 		}
 		_cbd = append(_cbd, &rowInfo{height: _bfg / _ca, _bgc: true, style: _cde.getStyle(_aff.X().SAttr)})
