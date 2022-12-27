@@ -2,6 +2,7 @@ package convert2
 
 import (
 	_a "image"
+	"math"
 	"strconv"
 
 	_ce "github.com/unidoc/unioffice/common/logger"
@@ -149,17 +150,17 @@ func (_afeb *convertContext) imageFromAnchor(_acf *anchor, _gca, _bdcb float64) 
 	}
 	return nil
 }
-func _bgfc(_fdfe *symbol) {
-	_cgfg := creator.New()
-	_bcca := _cgfg.NewStyledParagraph()
-	_bcca.SetMargins(0, 0, 0, 0)
-	_dee := _bcca.Append(_fdfe.value)
-	if _fdfe._fae != nil {
-		_dee.Style = *_fdfe._fae
+func _bgfc(_symbol *symbol) {
+	_creator := creator.New()
+	_styleParagraph := _creator.NewStyledParagraph()
+	_styleParagraph.SetMargins(0, 0, 0, 0)
+	_dee := _styleParagraph.Append(_symbol.value)
+	if _symbol._fae != nil {
+		_dee.Style = *_symbol._fae
 	}
-	_fdfe._fgfag = _bcca.Height()
-	if _fdfe._fceca == 0 {
-		_fdfe._fceca = _bcca.Width()
+	_symbol._fgfag = _styleParagraph.Height()
+	if _symbol._fceca == 0 {
+		_symbol._fceca = _styleParagraph.Width()
 	}
 }
 func (_dda *convertContext) fillPages() {
@@ -252,7 +253,7 @@ func (_cgg *convertContext) getContentFromCell(cell _d.Cell, _eged *style, _cga 
 			if symbol1.value == "\n" {
 				_dbea := findMax(symbols)
 				//control line spacing.
-				_dbea -= 2.5
+				_dbea -= 2
 				lines = append(lines, &line{lineSpace: start, symbols: symbols, fontSize: _dbea})
 				symbols = []*symbol{symbol1}
 				_bff = symbol1._fceca
@@ -1260,7 +1261,9 @@ func (ctx *convertContext) makeTextStyleFromCellStyle(_style *style) *creator.Te
 	}
 
 	if ctx.scale != 100 {
-		textstyle.FontSize *= (float64(ctx.scale) / 100)
+		//textstyle.HorizontalScaling = 89
+		//in somecase, decimal font size cause text render incorrectly
+		textstyle.FontSize = math.Round(textstyle.FontSize * (float64(ctx.scale)) / 100)
 	}
 
 	return &textstyle
