@@ -10,6 +10,10 @@ import (
 	"github.com/unidoc/unitype"
 )
 
+func init() {
+	registerFontsFromDirectory("/usr/share/fonts/truetype/msttcorefonts")
+}
+
 func registerFontsFromDirectory(dirName string) error {
 	dir, err := os.Open(dirName)
 	if err != nil {

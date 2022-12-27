@@ -550,7 +550,7 @@ type line struct {
 const _ac = 0.25
 const _bd = 2
 
-var border_base = _gefg(0.0625 * 3)
+var border_base = _gefg(0.0625)
 
 func (ctx *convertContext) makePages() {
 	for _, _dbb := range ctx.pages_span {
