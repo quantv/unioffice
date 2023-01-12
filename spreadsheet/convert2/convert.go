@@ -248,6 +248,8 @@ func (_cgg *convertContext) getContentFromCell(cell _d.Cell, _eged *style, width
 		lines = []*line{}
 		_acb := width - 2*_eb
 		symbols := []*symbol{}
+		last_space := 0
+		reduce := 0
 		for _, symbol1 := range cellSymbols {
 			_bgfc(symbol1)
 			if symbol1.value == "\n" {
@@ -258,28 +260,48 @@ func (_cgg *convertContext) getContentFromCell(cell _d.Cell, _eged *style, width
 				symbols = []*symbol{symbol1}
 				_bff = symbol1._fceca
 				start += _dbea
+				reduce = 2
 			} else if _bff+symbol1._fceca >= _acb {
 				_dbea := findMax(symbols)
+				_dbea -= 2
+				reduce = 2
 				if _gdaf {
 					_dbea /= _ga
 				}
-				lines = append(lines, &line{lineSpace: start, symbols: symbols, fontSize: _dbea})
-				symbols = []*symbol{symbol1}
-				_bff = symbol1._fceca
-				start += _dbea
+				//break line but keep words
+				if symbol1.value == " " {
+					lines = append(lines, &line{lineSpace: start, symbols: symbols, fontSize: _dbea})
+					symbols = []*symbol{symbol1}
+					_bff = symbol1._fceca
+					start += _dbea
+				} else {
+					lines = append(lines, &line{lineSpace: start, symbols: symbols[0:last_space], fontSize: _dbea})
+					symbols = append(symbols[last_space:], symbol1)
+
+					_bff = 0.0
+					for _, s := range symbols {
+						s.left = _bff
+						_bff += s._fceca
+					}
+					start += _dbea
+				}
 				//need to increase row height if need.
 			} else {
 				symbol1.left = _bff
 				_bff += symbol1._fceca
 				symbols = append(symbols, symbol1)
+				if symbol1.value == " " {
+					last_space = len(symbols)
+				}
 			}
 		}
 		_cbgf := findMax(symbols)
 		if _gdaf {
 			_cbgf /= _ga
 		}
+		//cung tru neu co su dung xuong dong.
 		if len(symbols) > 0 {
-			lines = append(lines, &line{lineSpace: start, symbols: symbols, fontSize: _cbgf})
+			lines = append(lines, &line{lineSpace: start, symbols: symbols, fontSize: _cbgf - float64(reduce)})
 		}
 	} else {
 		for _, _agd := range cellSymbols {
@@ -1112,7 +1134,7 @@ func (context *convertContext) makeCells() {
 	sheet := context.sheet
 	sheetRows := sheet.Rows()
 	rowIdx := 0
-	for _, row := range context.rowInfo {
+	for rowInfoIdx, row := range context.rowInfo {
 		row.cells = []*cell{}
 		max_thickness := 0.0
 		rowStyle := row.style
@@ -1183,6 +1205,14 @@ func (context *convertContext) makeCells() {
 					_aad = style._gea
 				}
 				lines, cellType := context.getContentFromCell(scell, style, columnWidth, _aad)
+				var lineHeight float64 = 0
+				for _, line := range lines {
+					lineHeight += line.fontSize + 2
+				}
+				if lineHeight > rowHeight {
+					rowHeight = lineHeight + 6
+					context.rowInfo[rowInfoIdx].height = rowHeight
+				}
 
 				_affd := &cell{
 					cellType: cellType, _bde: columnWidth, _bcf: _baf, rowHeight: rowHeight,
