@@ -109,6 +109,20 @@ func (sheet *Sheet) CopyRows(source, dest uint32, rows int) int {
 			destRow.Cell(col).Copy(cell)
 		}
 	}
+	//copy merged cell
+	for _, merged := range sheet.MergedCells() {
+		start, end, err := reference.ParseRangeReference(merged.Reference())
+		if err != nil {
+			continue
+		}
+		if start.RowIdx == source && start.RowIdx == end.RowIdx {
+			for i := 0; i < rows; i++ {
+				start.RowIdx = dest + uint32(i)
+				end.RowIdx = start.RowIdx
+				sheet.AddMergedCells(start.String(), end.String())
+			}
+		}
+	}
 	return rows
 }
 
