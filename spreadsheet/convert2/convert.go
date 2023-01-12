@@ -84,7 +84,7 @@ func ConvertToPdf(sheet *_d.Sheet) *creator.Creator {
 		_ad = _fb.Themes()[0]
 	}
 	var scale uint32 = 100
-	if sheetX.PageSetup.ScaleAttr != nil {
+	if sheetX.PageSetup != nil && sheetX.PageSetup.ScaleAttr != nil {
 		scale = *sheetX.PageSetup.ScaleAttr
 	}
 	_ef := &convertContext{
@@ -197,7 +197,7 @@ func (_dda *convertContext) fillPages() {
 		}
 	}
 }
-func (_cgg *convertContext) getContentFromCell(cell _d.Cell, _eged *style, _cga float64, _gdeg bool) ([]*line, sml.ST_CellType) {
+func (_cgg *convertContext) getContentFromCell(cell _d.Cell, _eged *style, width float64, _gdeg bool) ([]*line, sml.ST_CellType) {
 	_gdd := cell.X()
 	var cellSymbols []*symbol
 	switch _gdd.TAttr {
@@ -246,7 +246,7 @@ func (_cgg *convertContext) getContentFromCell(cell _d.Cell, _eged *style, _cga 
 	}
 	if _gdeg {
 		lines = []*line{}
-		_acb := _cga - 2*_eb
+		_acb := width - 2*_eb
 		symbols := []*symbol{}
 		for _, symbol1 := range cellSymbols {
 			_bgfc(symbol1)
@@ -267,6 +267,7 @@ func (_cgg *convertContext) getContentFromCell(cell _d.Cell, _eged *style, _cga 
 				symbols = []*symbol{symbol1}
 				_bff = symbol1._fceca
 				start += _dbea
+				//need to increase row height if need.
 			} else {
 				symbol1.left = _bff
 				_bff += symbol1._fceca
@@ -932,7 +933,7 @@ func (_ecgd *convertContext) alignSymbolsVertically(_aac *cell, _dff sml.ST_Vert
 		for _, _eea := range _aac.lines {
 			_ebg += _eea.fontSize + _gefg(1)
 		}
-		_bgae = 0.5 * (_aac._gaa - _ebg)
+		_bgae = 0.5 * (_aac.rowHeight - _ebg)
 		if _aac._cccb {
 			_bgae -= 2 * _bf
 		} else if _aac._aaee {
@@ -944,7 +945,7 @@ func (_ecgd *convertContext) alignSymbolsVertically(_aac *cell, _dff sml.ST_Vert
 			_bgae += 0.5 * _ec
 		}
 	default:
-		_bgae = _aac._gaa - _bd
+		_bgae = _aac.rowHeight - _bd
 		if _aac._cccb {
 			_bgae -= 4 * _bf
 		} else if _aac._aaee {
@@ -1118,7 +1119,7 @@ func (context *convertContext) makeCells() {
 		if row._bgc {
 			sheetRow := sheetRows[rowIdx]
 			rowIdx++
-			_cac := row.height
+			rowHeight := row.height
 			if row.height <= 0 {
 				continue
 			}
@@ -1129,8 +1130,8 @@ func (context *convertContext) makeCells() {
 					continue
 				}
 				colinfo := context.colInfo[cellref.ColumnIdx]
-				_eg := colinfo.width
-				_baf := _eg
+				columnWidth := colinfo.width
+				_baf := columnWidth
 				_dc := colinfo.style
 				var _bdd, _fcb, _bda, _dea bool
 				for _, mergedcell := range context.mergedCells {
@@ -1140,8 +1141,8 @@ func (context *convertContext) makeCells() {
 						cellref.ColumnIdx <= mergedcell.endColumn {
 
 						if cellref.ColumnIdx == mergedcell.startColumn && cellref.RowIdx == mergedcell.startRow {
-							_eg = mergedcell.width
-							_cac = mergedcell.height
+							columnWidth = mergedcell.width
+							rowHeight = mergedcell.height
 						}
 						_bdd = cellref.RowIdx != mergedcell.startRow
 						_fcb = cellref.RowIdx != mergedcell.endRow
@@ -1181,9 +1182,10 @@ func (context *convertContext) makeCells() {
 					}
 					_aad = style._gea
 				}
-				lines, cellType := context.getContentFromCell(scell, style, _eg, _aad)
+				lines, cellType := context.getContentFromCell(scell, style, columnWidth, _aad)
+
 				_affd := &cell{
-					cellType: cellType, _bde: _eg, _bcf: _baf, _gaa: _cac,
+					cellType: cellType, _bde: columnWidth, _bcf: _baf, rowHeight: rowHeight,
 					lines:   lines,
 					border1: border1,
 					border2: border2,
@@ -1415,7 +1417,7 @@ type cell struct {
 	lines     []*line
 	_bde      float64
 	_bcf      float64
-	_gaa      float64
+	rowHeight float64
 	_bbbc     float64
 	_gbge     float64
 	textStyle *creator.TextStyle
@@ -1436,33 +1438,34 @@ func findMax(_cef []*symbol) float64 {
 	}
 	return _accc
 }
-func (_cde *convertContext) makeRows() {
-	_cbd := []*rowInfo{}
-	_gace := _cde.sheet.Rows()
+func (ctx *convertContext) makeRows() {
+	row_info := []*rowInfo{}
+	rows := ctx.sheet.Rows()
 	_fd := 0
-	for _, _aff := range _gace {
+	for _, row := range rows {
 		_fd++
-		_gde := int(_aff.RowNumber())
-		if _gde > _fd {
-			for _aabc := _fd; _aabc < _gde; _aabc++ {
-				_cbd = append(_cbd, &rowInfo{height: 16 / _ca})
+		rowNumber := int(row.RowNumber())
+		if rowNumber > _fd {
+			for _aabc := _fd; _aabc < rowNumber; _aabc++ {
+				row_info = append(row_info, &rowInfo{height: 16 / _ca})
 			}
-			_fd = _gde
+			_fd = rowNumber
 		}
-		var _bfg float64
-		if _aff.X().HtAttr == nil {
-			_bfg = 16
+		var height float64
+		if row.X().HtAttr == nil {
+			height = 16
+			//TODO: if text wrap and is too long. it need to be heigher.
 		} else {
-			_bfg = *_aff.X().HtAttr
+			height = *row.X().HtAttr
 		}
-		hidden := _aff.X().HiddenAttr
+		hidden := row.X().HiddenAttr
 		if hidden != nil && *hidden {
-			_bfg = 0
+			height = 0
 		}
-		_cbd = append(_cbd, &rowInfo{height: _bfg / _ca, _bgc: true, style: _cde.getStyle(_aff.X().SAttr)})
+		row_info = append(row_info, &rowInfo{height: height / _ca, _bgc: true, style: ctx.getStyle(row.X().SAttr)})
 	}
-	for _faa := len(_cbd); _faa < _cde._dbc; _faa++ {
-		_cbd = append(_cbd, &rowInfo{height: 16 / _ca})
+	for _faa := len(row_info); _faa < ctx._dbc; _faa++ {
+		row_info = append(row_info, &rowInfo{height: 16 / _ca})
 	}
-	_cde.rowInfo = _cbd
+	ctx.rowInfo = row_info
 }

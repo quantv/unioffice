@@ -16,11 +16,11 @@ func TestPdf(t *testing.T) {
 
 	RegisterFontsFromDirectory("/usr/share/fonts/truetype/msttcorefonts")
 
-	wb, _ := spreadsheet.Open("/home/quantv/Downloads/tmp/pdf.xlsx")
+	wb, _ := spreadsheet.Open("/home/quantv/Downloads/tmp/Đơn hàng MRO-DH.000165.xlsx")
 	sh := wb.Sheets()[0]
 
 	c := ConvertToPdf(&sh)
-	c.WriteToFile("/home/quantv/Downloads/tmp/file4.pdf")
+	c.WriteToFile("/home/quantv/Downloads/tmp/order-1.pdf")
 }
 
 func TestFont(t *testing.T) {
